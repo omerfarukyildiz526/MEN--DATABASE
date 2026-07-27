@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>menulerim.com - Mimari Sunum</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Vis.js Kütüphanesi -->
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    
+    <!-- Fontlar ve İkonlar -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        body { margin: 0; font-family: 'Inter', sans-serif; background: #020617; color: #fff; overflow: hidden; }
+        
+        /* Gelişmiş Arkaplan */
+        .bg-grid {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+            background-image: 
+                linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+            background-size: 40px 40px;
+            z-index: 0;
+        }
+        .glow {
+            position: absolute; width: 80vw; height: 80vw;
+            background: radial-gradient(circle, rgba(14, 165, 233, 0.15) 0%, rgba(0,0,0,0) 60%);
+            top: -40vw; left: -20vw; z-index: 0; pointer-events: none;
+        }
+
+        #network-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; outline: none; }
+
+        /* Sol Üst Bilgi Paneli */
+        .header-panel {
+            position: absolute; top: 30px; left: 30px; z-index: 10;
+            background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(16px);
+            border: 1px solid rgba(255,255,255,0.15); border-radius: 16px;
+            padding: 24px; box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+        }
+
+        /* Sağ Kayan Panel */
+        #detail-sidebar {
+            position: absolute; top: 0; right: -500px;
+            width: 420px; height: 100vh; z-index: 20;
+            background: rgba(9, 9, 11, 0.95); backdrop-filter: blur(25px);
+            border-left: 1px solid rgba(255,255,255,0.15);
+            transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+            padding: 40px 30px; box-shadow: -15px 0 40px rgba(0,0,0,0.9);
+            overflow-y: auto;
+        }
+        #detail-sidebar.active { right: 0; }
+        
+        .close-btn { position: absolute; top: 24px; right: 24px; cursor: pointer; color: #a1a1aa; font-size: 24px; transition: 0.2s; }
+        .close-btn:hover { color: #fff; transform: scale(1.15) rotate(90deg); }
+
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.25); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.5); }
+    </style>
+</head>
+<body>
+
+    <div class="bg-grid"></div>
+    <div class="glow"></div>
+
+    <div class="header-panel">
+        <h1 class="text-3xl font-bold text-white tracking-tight drop-shadow-md"><i class="fa-solid fa-layer-group text-sky-500 mr-2"></i> menulerim.com</h1>
+        <p class="text-sm text-slate-300 mt-2 font-medium">SaaS Veritabanı Mimarisi (28 Tablo)</p>
+        <div class="mt-5 flex flex-col gap-3 text-xs font-semibold text-slate-200">
+            <div class="flex items-center gap-3"><span class="w-4 h-4 rounded-full bg-blue-600 shadow-[0_0_10px_rgba(37,99,235,0.8)]"></span> Kimlik & Güvenlik</div>
+            <div class="flex items-center gap-3"><span class="w-4 h-4 rounded-full bg-emerald-600 shadow-[0_0_10px_rgba(5,150,105,0.8)]"></span> Katalog Modülü</div>
+            <div class="flex items-center gap-3"><span class="w-4 h-4 rounded-full bg-orange-600 shadow-[0_0_10px_rgba(234,88,12,0.8)]"></span> İşletme (Vitrin)</div>
+            <div class="flex items-center gap-3"><span class="w-4 h-4 rounded-full bg-purple-600 shadow-[0_0_10px_rgba(124,58,237,0.8)]"></span> Sosyal Etkileşim</div>
+            <div class="flex items-center gap-3"><span class="w-4 h-4 rounded-full bg-slate-600 shadow-[0_0_10px_rgba(71,85,105,0.8)]"></span> Polimorfik Çekirdek</div>
+        </div>
+        <p class="text-xs text-sky-400 mt-6 opacity-90 bg-sky-900/30 py-2 px-3 rounded-lg border border-sky-500/30"><i class="fa-solid fa-hand-pointer mr-1 animate-pulse"></i> Detaylar için tablolara tıklayın</p>
+    </div>
+
+    <div id="network-canvas"></div>
+
+    <div id="detail-sidebar">
+        <i class="fa-solid fa-xmark close-btn" onclick="closeSidebar()"></i>
+        <div class="mb-6">
+            <span id="sb-group" class="text-[11px] font-bold uppercase tracking-widest px-3 py-1.5 rounded bg-slate-800 text-white shadow-md">Grup</span>
+            <h2 id="sb-title" class="text-3xl font-extrabold mt-4 text-white drop-shadow-md">tableName</h2>
+            <h3 id="sb-tr" class="text-sm font-semibold text-sky-400 mt-2">Türkçe Adı</h3>
+        </div>
+        
+        <p id="sb-desc" class="text-sm text-slate-300 leading-relaxed mb-8 bg-white/5 p-4 rounded-lg border border-white/10">Açıklama alanı...</p>
+
+        <div class="mb-8">
+            <h4 class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-700 pb-2">Alanlar (Columns)</h4>
+            <ul id="sb-cols" class="font-mono text-[13px] text-slate-200 flex flex-col gap-2">
+                <!-- Javascript Dolduracak -->
+            </ul>
+        </div>
+
+        <div>
+            <h4 class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-700 pb-2">Doğrudan İlişkili Tablolar</h4>
+            <div id="sb-rels" class="flex flex-wrap gap-2">
+                <!-- Javascript Dolduracak -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Veritabanı ve FK Kontrolleri Eksiksiz Yapıldı
+        const dbData = {
+            users: { tr: "Kullanıcılar", group: "Kimlik & Güvenlik", color: "bg-blue-600", desc: "Sistemdeki tüm adminlerin, restoran sahiplerinin ve müşterilerin tutulduğu ana kullanıcı tablosu.", cols: ["id (PK)", "firstName", "lastName", "email", "passwordHash", "phone", "isActive", "insTime"] },
+            roles: { tr: "Roller", group: "Kimlik & Güvenlik", color: "bg-blue-600", desc: "Kullanıcıların sistemdeki yetki seviyelerini tanımlayan ana tablo.", cols: ["id (PK)", "name", "description"] },
+            userRoles: { tr: "Kullanıcı Rolleri", group: "Kimlik & Güvenlik", color: "bg-blue-600", desc: "Hangi kullanıcının hangi role sahip olduğunu belirleyen eşleştirme tablosu.", cols: ["id (PK)", "userId (FK)", "roleId (FK)"] },
+            permissions: { tr: "Yetkiler", group: "Kimlik & Güvenlik", color: "bg-blue-600", desc: "Sistemde yapılabilecek en küçük eylemler.", cols: ["id (PK)", "name", "code"] },
+            rolePermissions: { tr: "Rol Yetkileri", group: "Kimlik & Güvenlik", color: "bg-blue-600", desc: "Hangi rolün hangi özel yetkilere sahip olduğunu tutan köprü tablo.", cols: ["id (PK)", "roleId (FK)", "permissionId (FK)"] },
+            userGoogle: { tr: "Google Girişleri", group: "Kimlik & Güvenlik", color: "bg-blue-600", desc: "Google ile giriş yapan kullanıcıların OAuth verilerini barındırır.", cols: ["id (PK)", "userId (FK)", "googleId", "email"] },
+            refreshTokens: { tr: "Oturum Belirteçleri", group: "Kimlik & Güvenlik", color: "bg-blue-600", desc: "Kullanıcıların güvenli JWT oturumlarını yönetir.", cols: ["id (PK)", "userId (FK)", "token", "expiresAt", "isRevoked"] },
+            
+            countries: { tr: "Ülkeler", group: "Polimorfik Çekirdek", color: "bg-slate-600", desc: "Sistemin hizmet verdiği veya adreslerde kullanılan ülkeler.", cols: ["id (PK)", "code", "name"] },
+            cities: { tr: "Şehirler", group: "Polimorfik Çekirdek", color: "bg-slate-600", desc: "Ülkelere bağlı şehir listeleri.", cols: ["id (PK)", "countryId (FK)", "name"] },
+            media: { tr: "Medya (Polimorfik)", group: "Polimorfik Çekirdek", color: "bg-slate-600", desc: "Sistemi dosya karmaşasından kurtaran merkezi medya kütüphanesi.", cols: ["id (PK)", "entityType", "entityId (Poly FK)", "mediaData", "mediaType", "isMain"] },
+            addresses: { tr: "Adresler (Polimorfik)", group: "Polimorfik Çekirdek", color: "bg-slate-600", desc: "Hem müşterilerin sipariş adreslerini hem de restoranların konumlarını tutan tablo.", cols: ["id (PK)", "entityType", "entityId (Poly FK)", "cityId (FK)", "addressText", "lat", "lng"] },
+            phoneBooks: { tr: "Telefonlar (Polimorfik)", group: "Polimorfik Çekirdek", color: "bg-slate-600", desc: "İşletme ve kullanıcılar için merkezi rehber.", cols: ["id (PK)", "entityType", "entityId (Poly FK)", "phoneNumber", "type"] },
+            translations: { tr: "Çeviriler (Polimorfik)", group: "Polimorfik Çekirdek", color: "bg-slate-600", desc: "Sistemi %100 çok dilli yapan merkez.", cols: ["id (PK)", "entityType", "entityId (Poly FK)", "languageId (FK)", "translationText"] },
+            languages: { tr: "Diller", group: "Polimorfik Çekirdek", color: "bg-slate-600", desc: "Sistemde desteklenen diller.", cols: ["id (PK)", "code", "name"] },
+            systemLogs: { tr: "Sistem Logları", group: "Polimorfik Çekirdek", color: "bg-slate-600", desc: "Kritik sistem hareketlerinin kaydedildiği günlük tablosu.", cols: ["id (PK)", "logLevel", "message", "insTime"] },
+
+            restaurants: { tr: "İşletmeler", group: "İşletme (Vitrin)", color: "bg-orange-600", desc: "Sisteme kayıtlı işletmelerin ana vitrin tablosu.", cols: ["id (PK)", "ownerId (FK)", "name", "slug", "isOpen", "isActive"] },
+            restaurantCategories: { tr: "İşletme Kategorileri", group: "İşletme (Vitrin)", color: "bg-orange-600", desc: "Sistemdeki ana mutfak türleri.", cols: ["id (PK)", "systemName", "iconClass"] },
+            restaurantCategoryMappings: { tr: "İşletme-Kategori Eşleşmesi", group: "İşletme (Vitrin)", color: "bg-orange-600", desc: "Bir restoranın birden fazla kategoride listelenmesini sağlayan köprü.", cols: ["id (PK)", "restaurantId (FK)", "categoryId (FK)"] },
+
+            menus: { tr: "Menüler", group: "Katalog Modülü", color: "bg-emerald-600", desc: "Zaman bazlı veya özel menülerin oluşturulduğu başlık tablosu.", cols: ["id (PK)", "restaurantId (FK)", "systemName", "startTime", "endTime"] },
+            categories: { tr: "Menü Kategorileri", group: "Katalog Modülü", color: "bg-emerald-600", desc: "Sınırsız alt kategori açılabilen ürün grupları tablosu.", cols: ["id (PK)", "menuId (FK)", "parentId (FK)", "systemName", "sortOrder"] },
+            products: { tr: "Ürünler", group: "Katalog Modülü", color: "bg-emerald-600", desc: "Menüdeki yemeklerin temel kayıtları.", cols: ["id (PK)", "categoryId (FK)", "systemName", "sku", "calories", "isAvailable"] },
+            productPrices: { tr: "Ürün Fiyatları", group: "Katalog Modülü", color: "bg-emerald-600", desc: "Geçmişten bugüne tüm fiyat değişimlerini tutan tablo.", cols: ["id (PK)", "productId (FK)", "price", "taxRate", "startDate", "endDate", "isActive"] },
+            productOptionGroups: { tr: "Ürün Seçenek Grupları", group: "Katalog Modülü", color: "bg-emerald-600", desc: "Ürüne eklenecek opsiyonların kuralları.", cols: ["id (PK)", "productId (FK)", "systemName", "selectionType", "minSelection", "maxSelection"] },
+            productOptions: { tr: "Varyantlar (Seçenekler)", group: "Katalog Modülü", color: "bg-emerald-600", desc: "Ekstra malzeme veya opsiyonlar.", cols: ["id (PK)", "optionGroupId (FK)", "systemName", "additionalPrice", "calories", "isDefault"] },
+            allergens: { tr: "Alerjenler Sözlüğü", group: "Katalog Modülü", color: "bg-emerald-600", desc: "Sağlık uyarıları listesi.", cols: ["id (PK)", "systemName", "iconClass", "colorCode", "severity"] },
+            productAllergens: { tr: "Ürün-Alerjen Eşleşmesi", group: "Katalog Modülü", color: "bg-emerald-600", desc: "Hangi yemekte hangi alerjenlerin bulunduğunu gösteren köprü.", cols: ["id (PK)", "productId (FK)", "allergenId (FK)"] },
+
+            reviews: { tr: "Yorumlar", group: "Sosyal Etkileşim", color: "bg-purple-600", desc: "Sınırsız derinlikte alt yorum yapılabilen sosyal ağ tablosu.", cols: ["id (PK)", "parentId (FK)", "userId (FK)", "entityType", "entityId (Poly FK)", "rating", "comment", "likeCount"] },
+            reviewLikes: { tr: "Yorum Beğenileri", group: "Sosyal Etkileşim", color: "bg-purple-600", desc: "Instagram vari yorum beğeni mekanizması.", cols: ["id (PK)", "reviewId (FK)", "userId (FK)"] }
+        };
+
+        // Nodları Oluştur - YAZILAR ARTIK KESİNLİKLE ŞEFFAF OLMAYACAK
+        const nodesArray = Object.keys(dbData).map(key => {
+            let bg = '#334155'; let border = '#64748b';
+            if(dbData[key].color.includes("blue")) { bg = '#2563eb'; border = '#60a5fa'; }
+            if(dbData[key].color.includes("emerald")) { bg = '#059669'; border = '#34d399'; }
+            if(dbData[key].color.includes("orange")) { bg = '#ea580c'; border = '#fb923c'; }
+            if(dbData[key].color.includes("purple")) { bg = '#7c3aed'; border = '#a78bfa'; }
+
+            return { 
+                id: key, 
+                label: key, 
+                originalBg: bg,
+                originalBorder: border,
+                color: { 
+                    background: bg, 
+                    border: border, 
+                    highlight: { background: bg, border: '#ffffff' } 
+                },
+                font: { 
+                    color: '#ffffff', // Şeffaflık kaldırıldı, tam beyaz.
+                    size: 18,         // Yazı boyutu büyütüldü
+                    face: 'Inter',
+                    bold: true,
+                    strokeWidth: 2,   // Okunabilirliği 10 kat artıran dış hat eklendi!
+                    strokeColor: 'rgba(0,0,0,0.6)'
+                },
+                shape: 'box',
+                margin: 16,
+                widthConstraint: { minimum: 170, maximum: 170 } // Kutular biraz genişletildi
+            };
+        });
+
+        const nodes = new vis.DataSet(nodesArray);
+
+        // EKSİK FK OKLARI EKLENDİ (cities->addresses, languages->translations)
+        const edgesArray = [
+            { from: 'users', to: 'userRoles' }, { from: 'roles', to: 'userRoles' },
+            { from: 'roles', to: 'rolePermissions' }, { from: 'permissions', to: 'rolePermissions' },
+            { from: 'users', to: 'userGoogle' }, { from: 'users', to: 'refreshTokens' },
+            { from: 'users', to: 'restaurants' }, { from: 'restaurants', to: 'restaurantCategoryMappings' },
+            { from: 'restaurantCategories', to: 'restaurantCategoryMappings' },
+            { from: 'restaurants', to: 'menus' }, { from: 'menus', to: 'categories' },
+            { from: 'categories', to: 'categories' }, { from: 'categories', to: 'products' },
+            { from: 'products', to: 'productPrices' }, { from: 'products', to: 'productOptionGroups' },
+            { from: 'productOptionGroups', to: 'productOptions' }, { from: 'products', to: 'productAllergens' },
+            { from: 'allergens', to: 'productAllergens' }, { from: 'users', to: 'reviews' },
+            { from: 'reviews', to: 'reviews' }, { from: 'reviews', to: 'reviewLikes' },
+            { from: 'users', to: 'reviewLikes' }, { from: 'countries', to: 'cities' },
+            // Yeni Eklenen Bağlantılar (FK Kontrolü Sonrası)
+            { from: 'cities', to: 'addresses' }, 
+            { from: 'languages', to: 'translations' } 
+        ];
+
+        const edges = new vis.DataSet(edgesArray);
+
+        const container = document.getElementById('network-canvas');
+        const data = { nodes: nodes, edges: edges };
+        const options = {
+            nodes: {
+                borderWidth: 2,
+                borderWidthSelected: 4,
+                shadow: { enabled: true, color: 'rgba(0,0,0,1)', size: 12, x: 0, y: 6 }
+            },
+            edges: {
+                width: 2,
+                color: { color: 'rgba(255,255,255,0.2)', highlight: '#38bdf8' },
+                arrows: { to: { enabled: true, scaleFactor: 0.6 } },
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                solver: 'forceAtlas2Based',
+                forceAtlas2Based: { gravitationalConstant: -140, centralGravity: 0.015, springLength: 220, springConstant: 0.07 },
+                maxVelocity: 50, timestep: 0.35, stabilization: { iterations: 150 }
+            },
+            interaction: { hover: true, tooltipDelay: 200 }
+        };
+
+        const network = new vis.Network(container, data, options);
+        let allNodes = nodes.get({ returnType: "Object" });
+
+        network.on("click", function (params) {
+            if (params.nodes.length > 0) {
+                const nodeId = params.nodes[0];
+                const info = dbData[nodeId];
+
+                network.focus(nodeId, { scale: 1.15, animation: { duration: 600, easingFunction: "easeInOutQuad" } });
+                
+                const connectedNodes = network.getConnectedNodes(nodeId);
+                connectedNodes.push(nodeId);
+                
+                let updateArray = [];
+                for (let nId in allNodes) {
+                    let node = allNodes[nId];
+                    if (connectedNodes.includes(nId)) {
+                        // Aktif olanlar tam renkli ve canlı
+                        updateArray.push({ 
+                            id: nId, 
+                            color: { background: node.originalBg, border: node.originalBorder, opacity: 1 }, 
+                            font: { color: '#ffffff', strokeWidth: 2 }
+                        });
+                    } else {
+                        // Odak dışı olanların YAZISI KAYBOLMAYACAK, sadece kutu rengi hafif sönükleşecek
+                        updateArray.push({ 
+                            id: nId, 
+                            color: { background: node.originalBg, border: node.originalBorder, opacity: 0.3 }, 
+                            font: { color: '#e2e8f0', strokeWidth: 1 } // Yazı beyaza yakın kalıyor!
+                        });
+                    }
+                }
+                nodes.update(updateArray);
+
+                document.getElementById("sb-title").innerText = nodeId;
+                document.getElementById("sb-tr").innerText = info.tr;
+                document.getElementById("sb-desc").innerText = info.desc;
+                
+                let groupEl = document.getElementById("sb-group");
+                groupEl.innerText = info.group;
+                groupEl.className = `text-[10px] font-extrabold uppercase tracking-widest px-3 py-1.5 rounded text-white shadow-md ${info.color}`;
+
+                let colsHtml = "";
+                info.cols.forEach(c => {
+                    let style = c.includes("(PK)") ? "text-amber-400 font-bold" : (c.includes("(FK)") || c.includes("Poly") ? "text-sky-400 font-bold" : "");
+                    colsHtml += `<li class="bg-slate-800/80 px-4 py-2.5 rounded border border-slate-700/80 shadow-sm ${style}"><i class="fa-solid fa-key mr-2 opacity-50"></i>${c}</li>`;
+                });
+                document.getElementById("sb-cols").innerHTML = colsHtml;
+
+                let relsHtml = "";
+                connectedNodes.forEach(cn => {
+                    if(cn !== nodeId) {
+                        relsHtml += `<button onclick="network.selectNodes(['${cn}']); network.emit('click', {nodes: ['${cn}']})" class="px-4 py-2 text-xs font-bold bg-slate-700/80 border border-slate-600 hover:bg-sky-600 hover:border-sky-400 text-white rounded transition shadow-sm">${cn}</button>`;
+                    }
+                });
+                if(relsHtml === "") relsHtml = '<span class="text-slate-500 text-xs italic bg-slate-800/50 p-2 rounded">Direkt ilişkili (Ok ile bağlı) tablo yok.</span>';
+                document.getElementById("sb-rels").innerHTML = relsHtml;
+
+                document.getElementById("detail-sidebar").classList.add("active");
+
+            } else {
+                closeSidebar();
+            }
+        });
+
+        function closeSidebar() {
+            document.getElementById("detail-sidebar").classList.remove("active");
+            let updateArray = [];
+            for (let nId in allNodes) {
+                let node = allNodes[nId];
+                updateArray.push({ 
+                    id: nId, 
+                    color: { background: node.originalBg, border: node.originalBorder, opacity: 1 }, 
+                    font: { color: '#ffffff', strokeWidth: 2 }
+                });
+            }
+            nodes.update(updateArray);
+            network.fit({ animation: { duration: 600, easingFunction: "easeInOutQuad" } });
+        }
+    </script>
+</body>
+</html>
